@@ -1,0 +1,97 @@
+services:
+  sparkyfitness-db:
+    image: postgres:18.3-alpine
+    container_name: sparkyfitness-db
+    restart: unless-stopped
+
+    volumes:
+      - ./postgresql:/var/lib/postgresql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    environment:
+      POSTGRES_DB: ${SPARKY_FITNESS_DB_NAME}
+      POSTGRES_USER: ${SPARKY_FITNESS_DB_USER}
+      POSTGRES_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+      TZ: ${TZ}
+
+    networks:
+      - sparkyfitness-network
+
+
+  sparkyfitness-server:
+    image: codewithcj/sparkyfitness_server:latest
+    container_name: sparkyfitness-server
+    restart: unless-stopped
+
+    volumes:
+      - ./backup:/app/SparkyFitnessServer/backup
+      - ./uploads:/app/SparkyFitnessServer/uploads
+
+    depends_on:
+      sparkyfitness-db:
+        condition: service_healthy
+
+    networks:
+      - sparkyfitness-network
+
+    environment:
+      SPARKY_FITNESS_DB_HOST: sparkyfitness-db
+      SPARKY_FITNESS_DB_PORT: 5432
+      SPARKY_FITNESS_DB_NAME: ${SPARKY_FITNESS_DB_NAME}
+      SPARKY_FITNESS_DB_USER: ${SPARKY_FITNESS_DB_USER}
+      SPARKY_FITNESS_DB_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+
+      SPARKY_FITNESS_APP_DB_USER: ${SPARKY_FITNESS_APP_DB_USER}
+      SPARKY_FITNESS_APP_DB_PASSWORD: ${SPARKY_FITNESS_APP_DB_PASSWORD}
+
+      SPARKY_FITNESS_API_ENCRYPTION_KEY: ${SPARKY_FITNESS_API_ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+
+      SPARKY_FITNESS_FRONTEND_URL: ${SPARKY_FITNESS_FRONTEND_URL}
+
+      NODE_ENV: production
+      TZ: ${TZ}
+
+      SPARKY_FITNESS_LOG_LEVEL: ERROR
+      SPARKY_FITNESS_SERVER_PORT: 3010
+
+      SPARKY_FITNESS_PUBLIC_API_DOCS: "false"
+      ALLOW_PRIVATE_NETWORK_CORS: "false"
+
+      GARMIN_MICROSERVICE_URL: ""
+
+
+  sparkyfitness-frontend:
+    image: codewithcj/sparkyfitness:latest
+    container_name: sparkyfitness-frontend
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:54312:80"
+
+    depends_on:
+      - sparkyfitness-server
+
+    networks:
+      - sparkyfitness-network
+
+    environment:
+      SPARKY_FITNESS_FRONTEND_URL: ${SPARKY_FITNESS_FRONTEND_URL}
+      SPARKY_FITNESS_SERVER_HOST: sparkyfitness-server
+      SPARKY_FITNESS_SERVER_PORT: 3010
+      TZ: ${TZ}
+
+
+networks:
+  sparkyfitness-network:
+    driver: bridge
